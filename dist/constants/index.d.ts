@@ -18,7 +18,9 @@ export declare enum RichTextAction {
     JustifyAlign = "justifyAlign",
     Divider = "divider",
     Undo = "undo",
-    Redo = "redo"
+    Redo = "redo",
+    ClearFormatting = "clearFormatting",
+    CodeBlock = "codeBlock"
 }
 export declare enum HeadingAction {
     Normal = "normal",
@@ -68,4 +70,8 @@ export declare const HEADINGS: {
     id: string;
     label: string;
     icon: import("react/jsx-runtime").JSX.Element;
+}[];
+export declare const CODE_BLOCK_LANGUAGES: {
+    id: string;
+    label: string;
 }[];

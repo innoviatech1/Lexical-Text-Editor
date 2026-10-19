@@ -2,7 +2,7 @@
 
 import { HeadingAction, LOW_PRIORIRTY, RICH_REDO_UNDO_OPTIONS, RICH_TEXT_OPTIONS, RichTextAction } from "../constants/index"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import { $createParagraphNode, $getSelection, $isElementNode, $isRangeSelection, CAN_REDO_COMMAND, CAN_UNDO_COMMAND, FORMAT_ELEMENT_COMMAND, FORMAT_TEXT_COMMAND, REDO_COMMAND, SELECTION_CHANGE_COMMAND, UNDO_COMMAND } from "lexical"
+import { $createParagraphNode, $getSelection, $isElementNode, $isRangeSelection, $isTextNode, CAN_REDO_COMMAND, CAN_UNDO_COMMAND, FORMAT_ELEMENT_COMMAND, FORMAT_TEXT_COMMAND, REDO_COMMAND, SELECTION_CHANGE_COMMAND, UNDO_COMMAND } from "lexical"
 import { useCallback, useEffect, useState } from "react"
 import { $getNearestNodeOfType, mergeRegister } from '@lexical/utils'
 import { type HeadingTagType, $createHeadingNode, $isHeadingNode } from '@lexical/rich-text'
@@ -22,6 +22,7 @@ import { IoIosLink } from "react-icons/io"
 import LinkModal from "../components/LinkModal"
 import { AlignmentSelectionList } from "../components/AlignmentSelectionList"
 import ColorPlugin from "./ColorPlugin"
+import CodeBlockPlugin from "./CodeBlockPlugin"
 import ListPlugin from "./ListPlugin"
 import ImagePlugin from "./ImagePlugin"
 import VideoPlugin from "./VideoPlugin"
@@ -305,6 +306,19 @@ export const ToolbarPlugin = ({ value, onImageUpload }: { value: string; onImage
         editor.dispatchCommand(REDO_COMMAND, undefined)
         break;
       }
+      case RichTextAction.ClearFormatting: {
+        editor.update(() => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return;
+
+          const textNodes = selection.getNodes().filter($isTextNode);
+          for (const node of textNodes) {
+            node.setFormat(0);
+            node.setStyle("");
+          }
+        });
+        break;
+      }
     }
   }
 
@@ -431,6 +445,8 @@ export const ToolbarPlugin = ({ value, onImageUpload }: { value: string; onImage
       </div>
 
       <ColorPlugin />
+
+      <CodeBlockPlugin />
 
 
       {/* alignment in dropdown */}

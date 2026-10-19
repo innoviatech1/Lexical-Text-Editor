@@ -5,6 +5,7 @@ import { BsArrowClockwise, BsArrowCounterclockwise, BsChatSquareQuote, BsJustify
 import { AiOutlineStrikethrough } from "react-icons/ai";
 import { IoCodeSlashOutline } from "react-icons/io5";
 import { PiHighlighterLight } from "react-icons/pi";
+import { RiEraserLine } from "react-icons/ri";
 
 export enum RichTextAction {
   Bold = "bold",
@@ -27,6 +28,8 @@ export enum RichTextAction {
   Divider = "divider",
   Undo = "undo",
   Redo = "redo",
+  ClearFormatting = "clearFormatting",
+  CodeBlock = "codeBlock",
 }
 
 export enum HeadingAction {
@@ -93,7 +96,11 @@ export const RICH_TEXT_OPTIONS = [
     label: "Code",
   },
   // { id: RichTextAction.Link, label: "Link", icon: <IoIosLink /> },
-
+  {
+    id: RichTextAction.ClearFormatting,
+    icon: <RiEraserLine />,
+    label: "Clear Formatting",
+  },
 ];
 
 export const RICH_REDO_UNDO_OPTIONS = [
@@ -175,3 +182,27 @@ export const HEADINGS = [
 ]
 
 // ["Normal", "H1", "H2", "H3", "H4", "H5", "H6"];
+
+export const CODE_BLOCK_LANGUAGES = [
+  { id: "plaintext", label: "Plain Text" },
+  { id: "javascript", label: "JavaScript" },
+  { id: "typescript", label: "TypeScript" },
+  { id: "python", label: "Python" },
+  { id: "java", label: "Java" },
+  { id: "csharp", label: "C#" },
+  { id: "cpp", label: "C++" },
+  { id: "php", label: "PHP" },
+  { id: "ruby", label: "Ruby" },
+  { id: "go", label: "Go" },
+  { id: "rust", label: "Rust" },
+  { id: "swift", label: "Swift" },
+  { id: "kotlin", label: "Kotlin" },
+  { id: "html", label: "HTML" },
+  { id: "css", label: "CSS" },
+  { id: "sql", label: "SQL" },
+  { id: "json", label: "JSON" },
+  { id: "bash", label: "Bash" },
+  { id: "markdown", label: "Markdown" },
+  { id: "yaml", label: "YAML" },
+  { id: "xml", label: "XML" },
+];

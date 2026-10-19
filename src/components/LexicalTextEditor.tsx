@@ -49,6 +49,16 @@ const theme: EditorThemeClasses = {
   },
   quote: "lexical-quote",
   link: "lexical-link",
+  code: "lexical-code-block",
+  codeHighlight: {
+    keyword: "lexical-code-token-keyword",
+    string: "lexical-code-token-string",
+    number: "lexical-code-token-number",
+    comment: "lexical-code-token-comment",
+    function: "lexical-code-token-function",
+    operator: "lexical-code-token-operator",
+    punctuation: "lexical-code-token-punctuation",
+  },
 }
 
 export const LexicalTextEditor: React.FC<LexiTexProps> = React.memo(

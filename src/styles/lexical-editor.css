@@ -258,6 +258,53 @@
   color: #000;
 }
 
+.lexical-text-editor .lexical-code-block,
+.lexical-content-editable .lexical-code-block {
+  display: block;
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  padding: 12px 14px;
+  margin: 8px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #111827;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+.lexical-code-block .lexical-code-token-keyword {
+  color: #c7254e;
+  font-weight: 600;
+}
+
+.lexical-code-block .lexical-code-token-string {
+  color: #2e7d32;
+}
+
+.lexical-code-block .lexical-code-token-number {
+  color: #b26a00;
+}
+
+.lexical-code-block .lexical-code-token-comment {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.lexical-code-block .lexical-code-token-function {
+  color: #6f42c1;
+}
+
+.lexical-code-block .lexical-code-token-operator {
+  color: #d63384;
+}
+
+.lexical-code-block .lexical-code-token-punctuation {
+  color: #374151;
+}
+
 .lexical-paragraph {
   margin-bottom: 0.5rem;
 }
