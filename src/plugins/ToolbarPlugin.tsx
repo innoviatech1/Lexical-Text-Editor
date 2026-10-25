@@ -1,8 +1,8 @@
 
 
-import { HeadingAction, LOW_PRIORIRTY, RICH_REDO_UNDO_OPTIONS, RICH_TEXT_OPTIONS, RichTextAction } from "../constants/index"
+import { HeadingAction, LOW_PRIORIRTY, RICH_BLOCK_OPTIONS, RICH_REDO_UNDO_OPTIONS, RICH_TEXT_OPTIONS, RichTextAction } from "../constants/index"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
-import { $createParagraphNode, $getSelection, $isElementNode, $isRangeSelection, $isTextNode, CAN_REDO_COMMAND, CAN_UNDO_COMMAND, FORMAT_ELEMENT_COMMAND, FORMAT_TEXT_COMMAND, REDO_COMMAND, SELECTION_CHANGE_COMMAND, UNDO_COMMAND } from "lexical"
+import { $createParagraphNode, $getSelection, $isElementNode, $isRangeSelection, $isTextNode, CAN_REDO_COMMAND, CAN_UNDO_COMMAND, FORMAT_ELEMENT_COMMAND, FORMAT_TEXT_COMMAND, INDENT_CONTENT_COMMAND, OUTDENT_CONTENT_COMMAND, REDO_COMMAND, SELECTION_CHANGE_COMMAND, UNDO_COMMAND } from "lexical"
 import { useCallback, useEffect, useState } from "react"
 import { $getNearestNodeOfType, mergeRegister } from '@lexical/utils'
 import { type HeadingTagType, $createHeadingNode, $isHeadingNode } from '@lexical/rich-text'
@@ -14,6 +14,10 @@ import {
   $isLinkNode,
 } from "@lexical/link";
 
+import {
+  INSERT_HORIZONTAL_RULE_COMMAND,
+} from "@lexical/react/LexicalHorizontalRuleNode";
+
 import { $isListNode, ListNode } from '@lexical/list'
 import { DropdownList } from "../components/DropdownList"
 import Separator from "../components/Separator"
@@ -24,6 +28,7 @@ import { AlignmentSelectionList } from "../components/AlignmentSelectionList"
 import ColorPlugin from "./ColorPlugin"
 import CodeBlockPlugin from "./CodeBlockPlugin"
 import ListPlugin from "./ListPlugin"
+import TablePlugin from "./TablePlugin"
 import ImagePlugin from "./ImagePlugin"
 import VideoPlugin from "./VideoPlugin"
 import ContentPreviewDialog from "../components/ContentPreview"
@@ -319,6 +324,18 @@ export const ToolbarPlugin = ({ value, onImageUpload }: { value: string; onImage
         });
         break;
       }
+      case RichTextAction.HorizontalRule: {
+        editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined)
+        break;
+      }
+      case RichTextAction.Indent: {
+        editor.dispatchCommand(INDENT_CONTENT_COMMAND, undefined)
+        break;
+      }
+      case RichTextAction.Outdent: {
+        editor.dispatchCommand(OUTDENT_CONTENT_COMMAND, undefined)
+        break;
+      }
     }
   }
 
@@ -444,6 +461,21 @@ export const ToolbarPlugin = ({ value, onImageUpload }: { value: string; onImage
         <Separator />
       </div>
 
+      {
+        RICH_BLOCK_OPTIONS.map(({ id, label, icon }) => (
+          id === RichTextAction.Divider ? <Separator key={id} /> :
+            <TooltipX key={id} content={label} direction="bottom">
+              <button type="button"
+                className={`size-8 lexical-btn ${selectionMap[id] ? "toolbarActive" : "toolbar"
+                  } icon`}
+                onClick={() => onAction(id)}
+              >
+                {icon}
+              </button>
+            </TooltipX>
+        ))
+      }
+
       <ColorPlugin />
 
       <CodeBlockPlugin />
@@ -503,6 +535,8 @@ export const ToolbarPlugin = ({ value, onImageUpload }: { value: string; onImage
       <ImagePlugin onImageUpload={onImageUpload} />
 
       <VideoPlugin />
+
+      <TablePlugin />
 
       <ContentPreviewDialog value={value} />
 
