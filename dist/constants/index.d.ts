@@ -20,7 +20,11 @@ export declare enum RichTextAction {
     Undo = "undo",
     Redo = "redo",
     ClearFormatting = "clearFormatting",
-    CodeBlock = "codeBlock"
+    CodeBlock = "codeBlock",
+    HorizontalRule = "horizontalRule",
+    Indent = "indent",
+    Outdent = "outdent",
+    Table = "table"
 }
 export declare enum HeadingAction {
     Normal = "normal",
@@ -65,6 +69,15 @@ export declare const RICH_ALIGNMENT_OPTIONS: {
     icon: import("react/jsx-runtime").JSX.Element;
     label: string;
 }[];
+export declare const RICH_BLOCK_OPTIONS: ({
+    id: RichTextAction;
+    icon: import("react/jsx-runtime").JSX.Element;
+    label: string;
+} | {
+    id: RichTextAction;
+    icon?: undefined;
+    label?: undefined;
+})[];
 export declare const LOW_PRIORIRTY = 1;
 export declare const HEADINGS: {
     id: string;

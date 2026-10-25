@@ -9,6 +9,10 @@ import { TextNode, type EditorThemeClasses } from "lexical"
 import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin"
 import { ListPlugin } from "@lexical/react/LexicalListPlugin"
 import { ListItemNode, ListNode } from "@lexical/list"
+import { HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRuleNode"
+import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin"
+import { TablePlugin as LexicalTablePlugin } from "@lexical/react/LexicalTablePlugin"
+import { TableCellNode, TableNode, TableRowNode } from "@lexical/table"
 import { ToolbarPlugin } from "../plugins/ToolbarPlugin"
 import { LinkNode } from "@lexical/link"
 import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin"
@@ -50,6 +54,11 @@ const theme: EditorThemeClasses = {
   quote: "lexical-quote",
   link: "lexical-link",
   code: "lexical-code-block",
+  hr: "lexical-hr",
+  indent: "lexical-indent",
+  table: "lexical-table",
+  tableRow: "lexical-table-row",
+  tableCell: "lexical-table-cell",
   codeHighlight: {
     keyword: "lexical-code-token-keyword",
     string: "lexical-code-token-string",
@@ -87,7 +96,11 @@ export const LexicalTextEditor: React.FC<LexiTexProps> = React.memo(
           LinkNode,
           ImageNode,
           YoutubeNode,
-          VideoNode
+          VideoNode,
+          HorizontalRuleNode,
+          TableNode,
+          TableRowNode,
+          TableCellNode
         ],
       }) as any,
       [name]
@@ -120,6 +133,8 @@ export const LexicalTextEditor: React.FC<LexiTexProps> = React.memo(
           </div>
           <HistoryPlugin />
           <ListPlugin />
+          <LexicalTablePlugin />
+          <HorizontalRulePlugin />
           <LinkPlugin />
           <CustomOnChangePlugin value={value} onChange={onChange} />
         </LexicalComposer>

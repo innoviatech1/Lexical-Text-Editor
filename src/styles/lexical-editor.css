@@ -346,6 +346,48 @@
   color: #1e40af;
 }
 
+.lexical-text-editor hr.lexical-hr,
+.lexical-content-editable hr.lexical-hr {
+  border: none;
+  border-top: 2px solid #d1d5db;
+  margin: 12px 0;
+  cursor: pointer;
+}
+
+.lexical-text-editor table.lexical-table,
+.lexical-content-editable table.lexical-table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  table-layout: fixed;
+  width: max-content;
+}
+
+.lexical-table td.lexical-table-cell,
+.lexical-table th.lexical-table-cell {
+  border: 1px solid #d1d5db;
+  padding: 6px 10px;
+  min-width: 75px;
+  vertical-align: top;
+  position: relative;
+}
+
+.lexical-table th.lexical-table-cell,
+.lexical-table td.lexical-table-cell.lexical-table-header-cell {
+  background-color: #f3f4f6;
+  font-weight: 600;
+}
+
+.lexical-table td.lexical-table-cell.selected,
+.lexical-table th.lexical-table-cell.selected {
+  background-color: #e0e7ff;
+}
+
+.lexical-paragraph.lexical-indent,
+.lexical-listitem.lexical-indent,
+.lexical-quote.lexical-indent {
+  margin-left: 40px;
+}
+
 
 
 /* --------------------------------------- HeadingSelectionList Start --------------------------------------------- */

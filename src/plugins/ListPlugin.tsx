@@ -7,6 +7,17 @@ import {
 } from "@lexical/list";
 import { BsListOl, BsListUl } from "react-icons/bs";
 import TooltipX from "../components/common/Tooltip";
+import {
+  $getSelection,
+  $isRangeSelection,
+  COMMAND_PRIORITY_EDITOR,
+  INDENT_CONTENT_COMMAND,
+  KEY_TAB_COMMAND,
+  OUTDENT_CONTENT_COMMAND,
+} from "lexical";
+import { $getNearestNodeOfType, mergeRegister } from "@lexical/utils";
+import { ListNode } from "@lexical/list";
+import { useEffect } from "react";
 
 interface ListPluginProps {
   blockType: string;
@@ -14,6 +25,31 @@ interface ListPluginProps {
 
 export default function ListPlugin({ blockType }: ListPluginProps) {
   const [editor] = useLexicalComposerContext();
+
+  // Tab / Shift+Tab inside lists -> indent / outdent (nested lists)
+  useEffect(() => {
+    return mergeRegister(
+      editor.registerCommand(
+        KEY_TAB_COMMAND,
+        (event: KeyboardEvent) => {
+          const selection = $getSelection();
+          if (!$isRangeSelection(selection)) return false;
+
+          const anchorNode = selection.anchor.getNode();
+          const list = $getNearestNodeOfType(anchorNode, ListNode);
+          if (!list) return false;
+
+          event.preventDefault();
+          editor.dispatchCommand(
+            event.shiftKey ? OUTDENT_CONTENT_COMMAND : INDENT_CONTENT_COMMAND,
+            undefined
+          );
+          return true;
+        },
+        COMMAND_PRIORITY_EDITOR
+      )
+    );
+  }, [editor]);
 
   const handleOrderedList = () => {
     if (blockType === "ol") {

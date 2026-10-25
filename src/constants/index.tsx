@@ -6,6 +6,9 @@ import { AiOutlineStrikethrough } from "react-icons/ai";
 import { IoCodeSlashOutline } from "react-icons/io5";
 import { PiHighlighterLight } from "react-icons/pi";
 import { RiEraserLine } from "react-icons/ri";
+import { RiIndentDecrease, RiIndentIncrease } from "react-icons/ri";
+import { TbSeparatorHorizontal } from "react-icons/tb";
+import { BsTable } from "react-icons/bs";
 
 export enum RichTextAction {
   Bold = "bold",
@@ -30,6 +33,10 @@ export enum RichTextAction {
   Redo = "redo",
   ClearFormatting = "clearFormatting",
   CodeBlock = "codeBlock",
+  HorizontalRule = "horizontalRule",
+  Indent = "indent",
+  Outdent = "outdent",
+  Table = "table",
 }
 
 export enum HeadingAction {
@@ -138,6 +145,25 @@ export const RICH_ALIGNMENT_OPTIONS = [
     id: RichTextAction.JustifyAlign,
     icon: <BsJustify />,
     label: "Justify Align",
+  },
+];
+
+export const RICH_BLOCK_OPTIONS = [
+  {
+    id: RichTextAction.Indent,
+    icon: <RiIndentIncrease />,
+    label: "Indent",
+  },
+  {
+    id: RichTextAction.Outdent,
+    icon: <RiIndentDecrease />,
+    label: "Outdent",
+  },
+  { id: RichTextAction.Divider },
+  {
+    id: RichTextAction.HorizontalRule,
+    icon: <TbSeparatorHorizontal />,
+    label: "Horizontal Rule",
   },
 ];
 
