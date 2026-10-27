@@ -1,5 +1,5 @@
 import { LexicalComposer } from "@lexical/react/LexicalComposer"
-import React, { useMemo } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { HeadingNode, QuoteNode } from "@lexical/rich-text"
 import { CodeHighlightNode, CodeNode } from "@lexical/code"
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin"
@@ -17,6 +17,8 @@ import { ToolbarPlugin } from "../plugins/ToolbarPlugin"
 import { LinkNode } from "@lexical/link"
 import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin"
 import CustomOnChangePlugin from "../plugins/CustomOnChangePlugin"
+import SourceView from "./SourceView"
+import StatusBar from "./StatusBar"
 import { ImageNode } from "../nodes/ImageNode"
 import { YoutubeNode } from "../nodes/YoutubeNode"
 import { VideoNode } from "../nodes/VideoNode"
@@ -31,9 +33,13 @@ export interface LexiTexProps {
   height?: string | null | undefined;
   maxWidth?: string | null | undefined;
   onImageUpload?: (file: File) => Promise<string>;
+  showWordCount?: boolean;
+  showCharCount?: boolean;
+  theme?: 'light' | 'dark' | 'system';
+  toolbarStyle?: 'normal' | 'scrollbar';
 }
 
-const theme: EditorThemeClasses = {
+const editorTheme: EditorThemeClasses = {
   text: {
     bold: "lexical-bold",
     underline: "lexical-underline",
@@ -71,12 +77,71 @@ const theme: EditorThemeClasses = {
 }
 
 export const LexicalTextEditor: React.FC<LexiTexProps> = React.memo(
-  function LexicalTextEditor({ name, value, onChange, placeholder, maxWidth = null, height = null, onImageUpload }) {
+  function LexicalTextEditor({
+    name,
+    value,
+    onChange,
+    placeholder,
+    maxWidth = null,
+    height = null,
+    onImageUpload,
+    showWordCount = true,
+    showCharCount = true,
+    theme = 'light',
+    toolbarStyle = 'normal',
+  }) {
+    const [sourceView, setSourceView] = useState(false);
+    const [fullscreen, setFullscreen] = useState(false);
+    const sourceViewApplyRef = useRef<(() => void) | null>(null);
+    const [systemDark, setSystemDark] = useState(false);
+
+    // `system` follows the OS color-scheme preference. matchMedia is only
+    // touched inside effects so the component stays SSR/render-safe.
+    useEffect(() => {
+      if (theme !== 'system' || typeof window === 'undefined' || !window.matchMedia) return;
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      setSystemDark(mediaQuery.matches);
+      const onChange = (event: MediaQueryListEvent) => setSystemDark(event.matches);
+      if (mediaQuery.addEventListener) {
+        mediaQuery.addEventListener('change', onChange);
+        return () => mediaQuery.removeEventListener('change', onChange);
+      }
+      // Legacy Safari fallback
+      mediaQuery.addListener(onChange);
+      return () => mediaQuery.removeListener(onChange);
+    }, [theme]);
+
+    const isDark = theme === 'dark' || (theme === 'system' && systemDark);
+
+    const toggleSourceView = () => {
+      setSourceView((prev) => {
+        if (prev) {
+          // Exit: apply pending source edits before leaving source view
+          sourceViewApplyRef.current?.();
+          return false;
+        }
+        return true;
+      });
+    };
+
+    const toggleFullscreen = () => {
+      setFullscreen((prev) => !prev);
+    };
+
+    // Escape exits fullscreen
+    useEffect(() => {
+      if (!fullscreen) return;
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key === "Escape") setFullscreen(false);
+      };
+      document.addEventListener("keydown", onKeyDown);
+      return () => document.removeEventListener("keydown", onKeyDown);
+    }, [fullscreen]);
 
     const initialConfig = useMemo(
       () => ({
         namespace: name,
-        theme: theme,
+        theme: editorTheme,
         onError: (error: Error) => {
           console.error("Lexical error:", error);
         },
@@ -107,16 +172,28 @@ export const LexicalTextEditor: React.FC<LexiTexProps> = React.memo(
     );
 
     return (
-      <div className="lexical-text-editor lexical-editor-container"
+      <div
+        className={`lexical-text-editor lexical-editor-container ${fullscreen ? "lexical-fullscreen" : ""} ${isDark ? "lexical-dark" : ""}`}
         style={{
-          maxWidth: maxWidth ? maxWidth : '1090px',
+          maxWidth: fullscreen ? 'none' : (maxWidth ? maxWidth : '1090px'),
         }}
       >
         <LexicalComposer initialConfig={initialConfig}>
           <div className="lexical-toolbar-container">
-            <ToolbarPlugin value={value} onImageUpload={onImageUpload} />
+            <ToolbarPlugin
+              value={value}
+              onImageUpload={onImageUpload}
+              sourceView={sourceView}
+              onToggleSourceView={toggleSourceView}
+              fullscreen={fullscreen}
+              onToggleFullscreen={toggleFullscreen}
+              toolbarStyle={toolbarStyle}
+            />
           </div>
-          <div className="lexical-editor-inner">
+          <div
+            className="lexical-editor-inner"
+            style={sourceView ? { display: 'none' } : undefined}
+          >
             <RichTextPlugin
               contentEditable={
                 <ContentEditable className="lexical-content-editable" style={{
@@ -131,6 +208,16 @@ export const LexicalTextEditor: React.FC<LexiTexProps> = React.memo(
               ErrorBoundary={LexicalErrorBoundary}
             />
           </div>
+          {sourceView &&
+            <SourceView
+              applyRef={sourceViewApplyRef}
+              onExit={() => setSourceView(false)}
+            />}
+          {(showWordCount || showCharCount) &&
+            <StatusBar
+              showWordCount={showWordCount}
+              showCharCount={showCharCount}
+            />}
           <HistoryPlugin />
           <ListPlugin />
           <LexicalTablePlugin />
