@@ -24,7 +24,10 @@ export declare enum RichTextAction {
     HorizontalRule = "horizontalRule",
     Indent = "indent",
     Outdent = "outdent",
-    Table = "table"
+    Table = "table",
+    FindReplace = "findReplace",
+    SourceView = "sourceView",
+    Fullscreen = "fullscreen"
 }
 export declare enum HeadingAction {
     Normal = "normal",

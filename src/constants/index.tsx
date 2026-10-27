@@ -37,6 +37,9 @@ export enum RichTextAction {
   Indent = "indent",
   Outdent = "outdent",
   Table = "table",
+  FindReplace = "findReplace",
+  SourceView = "sourceView",
+  Fullscreen = "fullscreen",
 }
 
 export enum HeadingAction {

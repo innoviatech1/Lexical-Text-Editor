@@ -8,5 +8,9 @@ export interface LexiTexProps {
     height?: string | null | undefined;
     maxWidth?: string | null | undefined;
     onImageUpload?: (file: File) => Promise<string>;
+    showWordCount?: boolean;
+    showCharCount?: boolean;
+    theme?: 'light' | 'dark' | 'system';
+    toolbarStyle?: 'normal' | 'scrollbar';
 }
 export declare const LexicalTextEditor: React.FC<LexiTexProps>;

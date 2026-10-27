@@ -3,7 +3,7 @@
 import { HeadingAction, LOW_PRIORIRTY, RICH_BLOCK_OPTIONS, RICH_REDO_UNDO_OPTIONS, RICH_TEXT_OPTIONS, RichTextAction } from "../constants/index"
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext"
 import { $createParagraphNode, $getSelection, $isElementNode, $isRangeSelection, $isTextNode, CAN_REDO_COMMAND, CAN_UNDO_COMMAND, FORMAT_ELEMENT_COMMAND, FORMAT_TEXT_COMMAND, INDENT_CONTENT_COMMAND, OUTDENT_CONTENT_COMMAND, REDO_COMMAND, SELECTION_CHANGE_COMMAND, UNDO_COMMAND } from "lexical"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { $getNearestNodeOfType, mergeRegister } from '@lexical/utils'
 import { type HeadingTagType, $createHeadingNode, $isHeadingNode } from '@lexical/rich-text'
 import { $wrapNodes } from '@lexical/selection'
@@ -23,9 +23,15 @@ import { DropdownList } from "../components/DropdownList"
 import Separator from "../components/Separator"
 import { HeadingSelectionList } from "../components/HeadingSelectionList"
 import { IoIosLink } from "react-icons/io"
+import { IoCodeOutline, IoSearchOutline } from "react-icons/io5"
+import { BsFullscreen, BsFullscreenExit, BsThreeDots } from "react-icons/bs"
 import LinkModal from "../components/LinkModal"
+import FindReplaceModal from "../components/FindReplaceModal"
+import ToolbarOverflowModal from "../components/ToolbarOverflowModal"
 import { AlignmentSelectionList } from "../components/AlignmentSelectionList"
 import ColorPlugin from "./ColorPlugin"
+import FontFamilyPlugin from "./FontFamilyPlugin"
+import FontSizePlugin from "./FontSizePlugin"
 import CodeBlockPlugin from "./CodeBlockPlugin"
 import ListPlugin from "./ListPlugin"
 import TablePlugin from "./TablePlugin"
@@ -34,7 +40,49 @@ import VideoPlugin from "./VideoPlugin"
 import ContentPreviewDialog from "../components/ContentPreview"
 import TooltipX from "../components/common/Tooltip"
 
-export const ToolbarPlugin = ({ value, onImageUpload }: { value: string; onImageUpload?: (file: File) => Promise<string> }) => {
+/**
+ * Toolbar segment layout (3.3): items marked `primary` always stay inline
+ * (undo/redo, heading, text formats, alignment, link); the rest collapse into
+ * the overflow modal from the END of this list towards the front when the
+ * toolbar runs out of width.
+ */
+const SEGMENTS: { id: string; primary?: boolean }[] = [
+  { id: 'lists' },
+  { id: 'blockOptions' },
+  { id: 'fontFamily' },
+  { id: 'fontSize' },
+  { id: 'color' },
+  { id: 'codeBlock' },
+  { id: 'dropdown' },
+  { id: 'alignment', primary: true },
+  { id: 'link', primary: true },
+  { id: 'image' },
+  { id: 'video' },
+  { id: 'table' },
+  { id: 'utility' },
+  { id: 'preview' },
+];
+const NON_PRIMARY_IDS = SEGMENTS.filter((s) => !s.primary).map((s) => s.id);
+const SEGMENT_GAP = 6;
+const ELLIPSIS_FALLBACK_WIDTH = 40;
+
+export const ToolbarPlugin = ({
+  value,
+  onImageUpload,
+  sourceView = false,
+  onToggleSourceView,
+  fullscreen = false,
+  onToggleFullscreen,
+  toolbarStyle = 'normal',
+}: {
+  value: string;
+  onImageUpload?: (file: File) => Promise<string>;
+  sourceView?: boolean;
+  onToggleSourceView?: () => void;
+  fullscreen?: boolean;
+  onToggleFullscreen?: () => void;
+  toolbarStyle?: 'normal' | 'scrollbar';
+}) => {
 
   const [editor] = useLexicalComposerContext();
   const [disableMap, setDisableMap] = useState<{ [id: string]: boolean }>({
@@ -42,6 +90,15 @@ export const ToolbarPlugin = ({ value, onImageUpload }: { value: string; onImage
     [RichTextAction.Redo]: true
   })
   const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [findReplaceOpen, setFindReplaceOpen] = useState(false);
+  const [collapsedCount, setCollapsedCount] = useState(0);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const primaryRef = useRef<HTMLDivElement | null>(null);
+  const ellipsisRef = useRef<HTMLButtonElement | null>(null);
+  const segmentRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const widthCache = useRef<Record<string, number>>({});
+  const ellipsisWidthRef = useRef(0);
   const [selectionMap, setSelectionMap] = useState<{ [id: string]: boolean }>({
     [RichTextAction.LeftAlign]: true,
   })
@@ -219,6 +276,80 @@ export const ToolbarPlugin = ({ value, onImageUpload }: { value: string; onImage
       )
     )
   }, [])
+
+  // ---------------- Overflow (3.3) + toolbar style (3.2) ----------------
+
+  const isScrollbarMode = toolbarStyle === 'scrollbar';
+
+  /**
+   * Predictive fit: measures the primary row and every segment (hidden
+   * segments from a width cache), then collapses non-primary segments from
+   * the end until the toolbar fits. State is only written on change, so the
+   * measure -> render -> measure cycle always terminates.
+   */
+  const syncOverflow = useCallback(() => {
+    if (toolbarStyle !== 'normal') return;
+    const row = rowRef.current;
+    if (!row) return;
+    // The row has no padding/border, so clientWidth is the usable width
+    const available = row.clientWidth;
+    if (available <= 0) return;
+
+    const primaryWidth = primaryRef.current ? primaryRef.current.offsetWidth : 0;
+    const widths = NON_PRIMARY_IDS.map((id) => {
+      const el = segmentRefs.current[id];
+      if (el && el.style.display !== 'none') {
+        widthCache.current[id] = el.offsetWidth;
+      }
+      return widthCache.current[id] ?? 0;
+    });
+    if (ellipsisRef.current) {
+      ellipsisWidthRef.current = ellipsisRef.current.offsetWidth;
+    }
+    const ellipsisWidth = ellipsisWidthRef.current || ELLIPSIS_FALLBACK_WIDTH;
+
+    const computeTotal = (k: number) => {
+      const visibleCount = 1 + (k > 0 ? 1 : 0) + (NON_PRIMARY_IDS.length - k);
+      let total =
+        primaryWidth +
+        Math.max(0, visibleCount - 1) * SEGMENT_GAP +
+        (k > 0 ? ellipsisWidth : 0);
+      for (let i = 0; i < NON_PRIMARY_IDS.length - k; i++) {
+        total += widths[i];
+      }
+      return total;
+    };
+
+    let k = collapsedCount;
+    while (k < NON_PRIMARY_IDS.length && computeTotal(k) > available) k++;
+    while (k > 0 && computeTotal(k - 1) <= available) k--;
+    setCollapsedCount((prev) => (prev === k ? prev : k));
+  }, [toolbarStyle, collapsedCount]);
+
+  // Re-measure after every render (selection changes resize dropdown labels)
+  useEffect(() => {
+    syncOverflow();
+  });
+  const syncOverflowRef = useRef<() => void>(() => { });
+  syncOverflowRef.current = syncOverflow;
+
+  // Row width changes
+  useEffect(() => {
+    if (toolbarStyle !== 'normal' || typeof ResizeObserver === 'undefined') return;
+    const row = rowRef.current;
+    if (!row) return;
+    const observer = new ResizeObserver(() => syncOverflowRef.current());
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [toolbarStyle]);
+
+  useEffect(() => {
+    if (collapsedCount === 0) setOverflowOpen(false);
+  }, [collapsedCount]);
+
+  useEffect(() => {
+    if (toolbarStyle === 'scrollbar') setCollapsedCount(0);
+  }, [toolbarStyle]);
 
   const onAction = (id: RichTextAction) => {
     switch (id) {
@@ -410,6 +541,77 @@ export const ToolbarPlugin = ({ value, onImageUpload }: { value: string; onImage
 
   //      <div className="flex gap-1.5 justify-start items-center p-1.5 pb-2 mb-1 border-b-[1px] overflow-x-auto overflow-y-hidden scrollbar-thin">
 
+  const isSegmentHidden = (id: string) => {
+    const pos = NON_PRIMARY_IDS.indexOf(id);
+    return pos >= NON_PRIMARY_IDS.length - collapsedCount;
+  };
+
+  const segmentNodes: Record<string, ReactNode> = {
+    lists: (<><ListPlugin blockType={blockType} /><Separator /></>),
+    blockOptions: (
+      <>
+        {
+          RICH_BLOCK_OPTIONS.map(({ id, label, icon }) => (
+            id === RichTextAction.Divider ? <Separator key={id} /> :
+              <TooltipX key={id} content={label} direction="bottom">
+                <button type="button"
+                  className={`size-8 lexical-btn ${selectionMap[id] ? "toolbarActive" : "toolbar"
+                    } icon`}
+                  onClick={() => onAction(id)}
+                >
+                  {icon}
+                </button>
+              </TooltipX>
+          ))
+        }
+      </>
+    ),
+    fontFamily: <FontFamilyPlugin />,
+    fontSize: <FontSizePlugin />,
+    color: <ColorPlugin />,
+    codeBlock: <CodeBlockPlugin />,
+    dropdown: <DropdownList onAction={onAction} selectionMap={selectionMap} />,
+    image: <ImagePlugin onImageUpload={onImageUpload} />,
+    video: <VideoPlugin />,
+    table: <TablePlugin />,
+    utility: (
+      <>
+        <Separator />
+        <TooltipX content="Find & Replace" direction="bottom">
+          <button type="button"
+            aria-label="Find & Replace"
+            className={`size-8 lexical-btn ${findReplaceOpen ? "toolbarActive" : "toolbar"
+              } icon`}
+            onClick={() => setFindReplaceOpen((prev) => !prev)}
+          >
+            <IoSearchOutline />
+          </button>
+        </TooltipX>
+        <TooltipX content="Source Code View" direction="bottom">
+          <button type="button"
+            aria-label="Source Code View"
+            className={`size-8 lexical-btn ${sourceView ? "toolbarActive" : "toolbar"
+              } icon`}
+            onClick={() => onToggleSourceView?.()}
+          >
+            <IoCodeOutline />
+          </button>
+        </TooltipX>
+        <TooltipX content={fullscreen ? "Exit Fullscreen" : "Fullscreen"} direction="bottom">
+          <button type="button"
+            aria-label={fullscreen ? "Exit Fullscreen" : "Fullscreen"}
+            className={`size-8 lexical-btn ${fullscreen ? "toolbarActive" : "toolbar"
+              } icon`}
+            onClick={() => onToggleFullscreen?.()}
+          >
+            {fullscreen ? <BsFullscreenExit /> : <BsFullscreen />}
+          </button>
+        </TooltipX>
+      </>
+    ),
+    preview: <ContentPreviewDialog value={value} />,
+  };
+
   return (
     <div
       className="lexical-toolbar-wrapper"
@@ -418,93 +620,92 @@ export const ToolbarPlugin = ({ value, onImageUpload }: { value: string; onImage
         padding: 12, marginBottom: 4, borderBottom: '1px solid #e5e7eb'
       }}
     >
-      {
-        RICH_REDO_UNDO_OPTIONS.map(({ id, label, icon }) => (
-          id === RichTextAction.Divider ? <Separator key={id} /> :
-            <TooltipX content={label} direction="bottom" key={label}>
-              <button type="button"
-                className={`size-8 lexical-btn ${selectionMap[id] ? "toolbarActive" : "toolbar"
-                  } icon`}
-                onClick={() => onAction(id)}
-                disabled={!!disableMap[id]}
-              >
-                {icon}
-              </button>
-            </TooltipX>
-        ))
-      }
-      <div style={{ display: 'flex', gap: 6, justifyContent: 'start', alignItems: 'center' }}>
+      <div
+        ref={rowRef}
+        className={`lte-toolbar-row ${isScrollbarMode ? "useScroll scrollbar-thin" : "lte-nowrap"}`}
+      >
+        <div ref={primaryRef} className="lte-toolbar-primary" style={{ display: 'flex', gap: 6, justifyContent: 'start', alignItems: 'center' }}>
+        {
+          RICH_REDO_UNDO_OPTIONS.map(({ id, label, icon }) => (
+            id === RichTextAction.Divider ? <Separator key={id} /> :
+              <TooltipX content={label} direction="bottom" key={label}>
+                <button type="button"
+                  className={`size-8 lexical-btn ${selectionMap[id] ? "toolbarActive" : "toolbar"
+                    } icon`}
+                  onClick={() => onAction(id)}
+                  disabled={!!disableMap[id]}
+                >
+                  {icon}
+                </button>
+              </TooltipX>
+          ))
+        }
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'start', alignItems: 'center' }}>
 
-        <HeadingSelectionList updateHeading={updateHeading} headingSelectionMap={headingSelectionMap} />
-        <Separator />
-      </div>
-      {
-        RICH_TEXT_OPTIONS.map(({ id, label, icon }) => (
-          id === RichTextAction.Divider ? <Separator key={id} /> :
-            <TooltipX key={id} content={label} direction="bottom">
-              <button type="button"
-                className={`size-8 lexical-btn ${selectionMap[id] ? "toolbarActive" : "toolbar"
-                  } icon`}
-                onClick={() => onAction(id)}
-              >
-                {icon}
-              </button>
-            </TooltipX>
-
-
-        ))
-      }
-      <div style={{ display: 'flex', gap: 6, justifyContent: 'start', alignItems: 'center' }}>
-
-        <ListPlugin blockType={blockType} />
-
-        <Separator />
-      </div>
-
-      {
-        RICH_BLOCK_OPTIONS.map(({ id, label, icon }) => (
-          id === RichTextAction.Divider ? <Separator key={id} /> :
-            <TooltipX key={id} content={label} direction="bottom">
-              <button type="button"
-                className={`size-8 lexical-btn ${selectionMap[id] ? "toolbarActive" : "toolbar"
-                  } icon`}
-                onClick={() => onAction(id)}
-              >
-                {icon}
-              </button>
-            </TooltipX>
-        ))
-      }
-
-      <ColorPlugin />
-
-      <CodeBlockPlugin />
+          <HeadingSelectionList updateHeading={updateHeading} headingSelectionMap={headingSelectionMap} />
+          <Separator />
+        </div>
+        {
+          RICH_TEXT_OPTIONS.map(({ id, label, icon }) => (
+            id === RichTextAction.Divider ? <Separator key={id} /> :
+              <TooltipX key={id} content={label} direction="bottom">
+                <button type="button"
+                  className={`size-8 lexical-btn ${selectionMap[id] ? "toolbarActive" : "toolbar"
+                    } icon`}
+                  onClick={() => onAction(id)}
+                >
+                  {icon}
+                </button>
+              </TooltipX>
 
 
-      {/* alignment in dropdown */}
+          ))
+        }
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'start', alignItems: 'center' }}>
+          <AlignmentSelectionList onAction={onAction} alignmentSelectionMap={selectionMap} />
+          <Separator />
+        </div>
 
-
-      <DropdownList onAction={onAction} selectionMap={selectionMap} />
-
-
-      <div style={{ display: 'flex', gap: 6, justifyContent: 'start', alignItems: 'center' }}>
-        <AlignmentSelectionList onAction={onAction} alignmentSelectionMap={selectionMap} />
-        <Separator />
+        <TooltipX content="Link" direction="bottom">
+          <button type="button"
+            className={`size-8 lexical-btn ${selectionMap[RichTextAction.Link] ? "toolbarActive" : "toolbar"
+              } icon`}
+            onClick={() => onAction(RichTextAction.Link)}
+            disabled={!!disableMap[RichTextAction.Link]}
+          >
+            {<IoIosLink />}
+          </button>
+        </TooltipX>
       </div>
 
+      {SEGMENTS.filter(({ primary }) => !primary).map(({ id }) => {
+        const hidden = isSegmentHidden(id);
+        return (
+          <div
+            key={id}
+            ref={(el) => { segmentRefs.current[id] = el; }}
+            style={hidden
+              ? { display: 'none' }
+              : { display: 'flex', gap: 6, justifyContent: 'start', alignItems: 'center' }}
+          >
+            {hidden ? null : segmentNodes[id]}
+          </div>
+        );
+      })}
 
-
-      <TooltipX content="Link" direction="bottom">
-        <button type="button"
-          className={`size-8 lexical-btn ${selectionMap[RichTextAction.Link] ? "toolbarActive" : "toolbar"
-            } icon`}
-          onClick={() => onAction(RichTextAction.Link)}
-          disabled={!!disableMap[RichTextAction.Link]}
-        >
-          {<IoIosLink />}
-        </button>
-      </TooltipX>
-
+      {collapsedCount > 0 &&
+        <TooltipX content="More tools" direction="bottom">
+          <button type="button"
+            ref={ellipsisRef}
+            aria-label="More tools"
+            className={`size-8 lexical-btn ${overflowOpen ? "toolbarActive" : "toolbar"
+              } icon`}
+            onClick={() => setOverflowOpen((prev) => !prev)}
+          >
+            <BsThreeDots />
+          </button>
+        </TooltipX>}
+      </div>
 
       {linkModalOpen &&
         <LinkModal
@@ -531,14 +732,19 @@ export const ToolbarPlugin = ({ value, onImageUpload }: { value: string; onImage
           }}
         />}
 
+      {overflowOpen &&
+        <ToolbarOverflowModal anchorRef={ellipsisRef} onClose={() => setOverflowOpen(false)}>
+          {NON_PRIMARY_IDS
+            .filter((id) => isSegmentHidden(id))
+            .map((id) => (
+              <div key={id} className="lte-overflow-item">{segmentNodes[id]}</div>
+            ))}
+        </ToolbarOverflowModal>}
 
-      <ImagePlugin onImageUpload={onImageUpload} />
-
-      <VideoPlugin />
-
-      <TablePlugin />
-
-      <ContentPreviewDialog value={value} />
+      {findReplaceOpen &&
+        <FindReplaceModal
+          onClose={() => setFindReplaceOpen(false)}
+        />}
 
 
       {/* <YoutubePlugin /> */}
