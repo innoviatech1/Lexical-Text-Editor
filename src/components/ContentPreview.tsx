@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { VscPreview } from "react-icons/vsc";
 import RawDialog from "./common/Dialog";
+import TooltipX from "./common/Tooltip";
 
 type HtmlPreviewProps = {
   value: string;
@@ -28,14 +29,15 @@ export default function ContentPreviewDialog({
   return (
     <div className="lexical-text-editor-dialog">
       {/* Trigger button */}
-
-      <button type="button"
-        className={`lexical-btn heading-trigger ${isOpen ? "toolbar-active" : "toolbar"}`}
-        onClick={() => setIsOpen((prev) => !prev)}
-      >
-        <VscPreview size={18} />
-        <span>{triggerLabel}</span>
-      </button>
+      <TooltipX content={triggerLabel} direction="bottom">
+        <button type="button"
+          className={`lexical-btn heading-trigger ${isOpen ? "toolbar-active" : "toolbar"}`}
+          onClick={() => setIsOpen((prev) => !prev)}
+        >
+          <VscPreview size={18} />
+          <span>{triggerLabel}</span>
+        </button>
+      </TooltipX>
 
       {/* Dialog */}
       <RawDialog open={isOpen} onClose={() => setIsOpen(false)} forPreview>

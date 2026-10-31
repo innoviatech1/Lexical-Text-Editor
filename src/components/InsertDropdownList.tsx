@@ -21,7 +21,7 @@ export function InsertDropdownList({ }) {
     <Popover open={isOpen} onOpenChange={(s) => setIsOpen(s)}>
       <PopoverTrigger asChild>
         <Button variant={isOpen ? "toolbarActive" : "toolbar"}
-          onClick={() => setIsOpen(!isOpen)} size="icon" className="size-8 w-fit p-2 select-none border-[1px] border-gray-100"
+          onClick={() => setIsOpen(!isOpen)} size="icon" className="size-10 w-fit p-2 select-none border-[1px] border-gray-100"
         >
           <BsPlus /> <span>Insert</span> <HiChevronDown className={` transition-normal duration-100 ${isOpen ? "rotate-180" : "rotate-0"}`} />
         </Button>

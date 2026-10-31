@@ -6,7 +6,6 @@ import { mergeRegister } from '@lexical/utils';
 import { LOW_PRIORIRTY } from '../constants';
 import { RiFontSize } from 'react-icons/ri';
 import { FontSelectionList, type FontOption } from '../components/FontSelectionList';
-import TooltipX from '../components/common/Tooltip';
 
 const FONT_SIZES = [12, 14, 16, 18, 20, 24, 28, 32, 36, 48];
 
@@ -61,14 +60,12 @@ export default function FontSizePlugin() {
   }
 
   return (
-    <TooltipX content="Font Size" direction="bottom">
-      <FontSelectionList
-        icon={<RiFontSize />}
-        tooltipLabel="Font Size"
-        currentValue={fontSize}
-        options={FONT_SIZE_OPTIONS}
-        onSelect={updateFontSize}
-      />
-    </TooltipX>
+    <FontSelectionList
+      icon={<RiFontSize />}
+      tooltipLabel="Font Size"
+      currentValue={fontSize}
+      options={FONT_SIZE_OPTIONS}
+      onSelect={updateFontSize}
+    />
   )
 }

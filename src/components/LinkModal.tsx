@@ -109,7 +109,7 @@ export default function LinkModal({
               setEditMode(false);
             } else setEditMode(true);
           }}
-          className={`size-8 toolbar icon`}
+          className={`size-10 toolbar icon`}
         >
           {isEditMode ? <MdCheck size={18} /> : <BsPencilSquare size={14} />}
         </button> */}
@@ -117,7 +117,7 @@ export default function LinkModal({
         {/* <button type="button" 
           onMouseDown={(e) => e.preventDefault()}
           onClick={removeLink}
-          className={`size-8 toolbar icon`}
+          className={`size-10 toolbar icon`}
         >
           <BiUnlink size={14} style={{ stroke: 'black' }} />
         </button> */}

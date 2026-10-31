@@ -132,23 +132,34 @@
   font-weight: bold;
 }
 
+/* Slim scrollbar — standard properties first (Chrome 121+, Edge, Firefox,
+   Safari 18.2+). NOTE: modern Chromium ignores ::-webkit-scrollbar styling
+   entirely, so the standard properties are the primary path; the webkit
+   pseudo rules below are only a fallback for old browsers without
+   `scrollbar-width` support. */
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: #a5acb6 transparent;
 }
 
-.scrollbar-thin::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+@supports not (scrollbar-width: thin) {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #a5acb6;
+    border-radius: 9999px;
+  }
 }
 
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: #a5acb6;
-  border-radius: 9999px;
+.lexical-text-editor.lexical-dark .scrollbar-thin {
+  scrollbar-color: #4b5563 transparent;
 }
 
 
@@ -197,23 +208,35 @@
   user-select: none;
 }
 
-.lexical-content-editable::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Slim standard scrollbar (see .scrollbar-thin note above) */
+.lexical-content-editable {
+  scrollbar-width: thin;
+  scrollbar-color: #c1c1c1 transparent;
 }
 
-.lexical-content-editable::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+@supports not (scrollbar-width: thin) {
+  .lexical-content-editable::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .lexical-content-editable::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+
+  .lexical-content-editable::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+  }
+
+  .lexical-content-editable::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+  }
 }
 
-.lexical-content-editable::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
-}
-
-.lexical-content-editable::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+.lexical-text-editor.lexical-dark .lexical-content-editable {
+  scrollbar-color: #4b5563 transparent;
 }
 
 .lexical-bold {
@@ -410,9 +433,9 @@
   justify-content: flex-start;
   width: 100%;
 
-  /* Sizing identical to Tailwind’s size-8 + px-3 py-2 */
+  /* Sizing identical to Tailwind's size-10 + px-3 py-2 */
   padding: 8px 12px;
-  height: 32px; /* size-8 = 2rem = 32px */
+  height: 40px; /* size-10 = 2.5rem = 40px */
   border-radius: 6px;
 
   /* Typography */
@@ -478,6 +501,15 @@
   color: rgb(17 24 39); /* gray-900 */
 }
 
+.lexical-text-editor .lexical-btn.toolbar-active:hover:not(:disabled) {
+  background: rgb(226 232 240); /* slate-200 */
+  color: rgb(17 24 39); /* gray-900 */
+}
+.lexical-text-editor.lexical-dark .lexical-btn.toolbar-active:hover:not(:disabled) {
+  background: var(--lte-surface-hover);
+  color: var(--lte-text);
+}
+
 /* ===========================================
    Disabled (shadcn behavior)
 =========================================== */
@@ -489,9 +521,9 @@
 /******************************
  * SIZE
  ******************************/
-.lexical-text-editor .size-8 {
-  width: 32px !important;
-  height: 32px !important;
+.lexical-text-editor .size-10 {
+  width: 40px !important;
+  height: 40px !important;
 }
 
 
@@ -514,6 +546,23 @@
 
 .lexical-text-editor .toolbar:hover:not(:disabled) {
   background-color: #f3f4f6;
+}
+
+/* ============================
+   ICON SIZE (uniform 20px)
+   Toolbar icon glyphs render at 20px; dropdown chevrons are excluded
+   so they stay compact. CSS width/height overrides react-icons' default
+   (1em) and explicit size={n} attributes alike.
+============================ */
+.lexical-text-editor button.icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.lexical-text-editor .heading-trigger svg:not(.chevron),
+.lexical-text-editor .font-trigger svg:not(.chevron) {
+  width: 20px;
+  height: 20px;
 }
 
 
@@ -607,7 +656,7 @@
 .lexical-text-editor .heading-trigger,
 .lexical-text-editor .font-trigger {
   border: 1px solid #e5e7eb; /* gray-100 */
-  height: 32px; /* size-8 */
+  height: 40px; /* size-10 */
   padding: 8px;
   justify-content: space-between;
   background-color: white;
@@ -810,7 +859,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 50;
+    z-index: 200; /* above the "..." overflow panel (dialogs open from inside it) */
   }
 
   /* Dialog */
@@ -1146,12 +1195,110 @@
 ============================ */
 .lexical-text-editor .lexical-status-bar {
   display: flex;
-  gap: 16px;
+  gap: 4px 16px;
+  flex-wrap: wrap;
+  
+  align-items: center;
   justify-content: flex-end;
   padding: 6px 12px;
   border-top: 1px solid #e5e7eb;
   font-size: 12px;
   color: #6b7280;
+}
+.lexical-text-editor .lexical-status-bar-right {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+/* ============================
+   DISPLAY CONTROLS (user-facing theme & toolbar-style switchers)
+============================ */
+.lexical-text-editor .lexical-display-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.lexical-text-editor .lte-mini-seg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.lexical-text-editor .lte-mini-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #6b7280;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.lexical-text-editor .lte-mini-btn svg {
+  pointer-events: none;
+}
+
+.lexical-text-editor .lte-mini-btn:hover {
+  background: var(--lte-surface-hover);
+  color: #374151;
+}
+
+.lexical-text-editor .lte-mini-btn.active {
+  background: var(--lte-surface-active);
+  color: rgb(17 24 39);
+}
+
+.lexical-text-editor.lexical-dark .lexical-status-bar-right {
+  border-top: none;
+}
+
+.lexical-text-editor.lexical-dark .lte-mini-seg {
+  border-color: var(--lte-border, #374151);
+}
+
+.lexical-text-editor.lexical-dark .lte-mini-btn {
+  color: var(--lte-text-muted);
+}
+
+.lexical-text-editor.lexical-dark .lte-mini-btn:hover {
+  background: var(--lte-surface-hover);
+  color: var(--lte-text);
+}
+
+.lexical-text-editor.lexical-dark .lte-mini-btn.active {
+  background: var(--lte-surface-hover);
+  color: var(--lte-text);
+}
+/* Responsive: narrow editors stack the counts and switchers cleanly */
+.lexical-text-editor .lexical-display-controls {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.lexical-text-editor .lte-mini-seg {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 560px) {
+  .lexical-text-editor .lexical-status-bar {
+    padding: 6px 8px;
+    gap: 4px 10px;
+    font-size: 11px;
+  }
+
+  .lexical-text-editor .lte-mini-btn {
+    width: 22px;
+    height: 22px;
+    font-size: 12px;
+  }
 }
 
 /* ============================
@@ -1195,7 +1342,7 @@
   position: absolute;
   top: calc(100% - 4px);
   right: 12px;
-  z-index: 50;
+  z-index: 400; /* above the "..." overflow panel (can be opened from inside it) */
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -1349,18 +1496,6 @@
 
 .lexical-text-editor.lexical-dark .lexical-placeholder {
   color: var(--lte-text-muted);
-}
-
-.lexical-text-editor.lexical-dark .lexical-content-editable::-webkit-scrollbar-track {
-  background: var(--lte-surface-raised);
-}
-
-.lexical-text-editor.lexical-dark .lexical-content-editable::-webkit-scrollbar-thumb {
-  background: var(--lte-border-strong);
-}
-
-.lexical-text-editor.lexical-dark .lexical-content-editable::-webkit-scrollbar-thumb:hover {
-  background: var(--lte-text-muted);
 }
 
 /* Inline code & code block */
@@ -1537,6 +1672,10 @@
   min-width: 0;
 }
 
+/* Collapse variant (toolbarStyle="collapse", the former "normal"): single row —
+   overflowed segments collapse into the "..." button + modal (predictive fit).
+   `safe center` keeps the centered look when everything fits and prevents
+   both-side clipping when it does not. */
 .lexical-toolbar-wrapper .lte-toolbar-row.lte-nowrap {
   overflow-x: auto;
   overflow-y: hidden;
@@ -1553,14 +1692,63 @@
   display: none;
 }
 
-/* Scrollbar variant (toolbarStyle="scrollbar"): thin always-visible scroller */
+/* Wrap variant (toolbarStyle="wrap", default): all tools flow serially and
+   overflowed buttons wrap onto extra lines (flex-wrap). No clipping, no
+   scrolling, no overflow-collapse. */
+.lexical-toolbar-wrapper .lte-toolbar-row.lte-wrap {
+  flex-wrap: wrap;
+  overflow-x: visible;
+  overflow-y: visible;
+  justify-content: flex-start;
+  row-gap: 6px;
+}
+
+/* Scrollbar variant (toolbarStyle="scrollbar"): native scrollbar hidden —
+   a custom slim scrollbar (no arrows) is rendered below the row instead */
 .lexical-toolbar-wrapper .lte-toolbar-row.useScroll {
   overflow-x: auto;
   overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.lexical-toolbar-wrapper .lte-toolbar-row.useScroll::-webkit-scrollbar {
+  display: none;
 }
 
 .lexical-toolbar-wrapper .lte-toolbar-row.useScroll > * {
   flex-shrink: 0;
+}
+
+/* Custom slim scrollbar (scrollbar mode) */
+.lexical-toolbar-wrapper .lte-custom-scrollbar {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  height: 5px;
+  border-radius: 9999px;
+  background: #eef0f3;
+  cursor: pointer;
+}
+
+.lexical-toolbar-wrapper .lte-custom-scrollbar-thumb {
+  height: 5px;
+  min-width: 24px;
+  border-radius: 9999px;
+  background: #c1c5cd;
+  cursor: grab;
+  touch-action: none;
+}
+
+.lexical-toolbar-wrapper .lte-custom-scrollbar-thumb:active {
+  cursor: grabbing;
+}
+
+.lexical-text-editor.lexical-dark .lte-custom-scrollbar {
+  background: var(--lte-surface-hover);
+}
+
+.lexical-text-editor.lexical-dark .lte-custom-scrollbar-thumb {
+  background: var(--lte-text-muted);
 }
 
 /* Overflow dropdown panel (anchored under the "..." button, no overlay) */
@@ -1568,7 +1756,7 @@
   position: absolute;
   top: calc(100% - 4px);
   right: 12px;
-  z-index: 9999;
+  z-index: 300; /* above toolbar rows, BELOW popovers/dropdowns/dialogs — popovers opened from inside this panel must stay visible */
   width: max-content;
   max-width: calc(100% - 24px);
   background: #ffffff;

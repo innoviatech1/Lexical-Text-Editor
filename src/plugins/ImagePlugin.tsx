@@ -4,6 +4,7 @@ import { $createImageNode } from "../nodes/ImageNode";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IoImageOutline } from "react-icons/io5";
 import RawDialog from "../components/common/Dialog";
+import TooltipX from "../components/common/Tooltip";
 import { LuUpload } from "react-icons/lu";
 
 type InsertImageParams = {
@@ -110,12 +111,14 @@ export default function ImagePlugin({ onImageUpload }: { onImageUpload?: (file: 
       />
 
       {/* Open dialog button */}
-      <button type="button"
-        className={`size-8 lexical-btn ${isOpen ? "toolbarActive" : "toolbar"} icon`}
-        onClick={() => setIsOpen((prev) => !prev)}
-      >
-        <IoImageOutline size={18} />
-      </button>
+      <TooltipX content="Add Image" direction="bottom">
+        <button type="button"
+          className={`size-10 lexical-btn ${isOpen ? "toolbarActive" : "toolbar"} icon`}
+          onClick={() => setIsOpen((prev) => !prev)}
+        >
+          <IoImageOutline size={18} />
+        </button>
+      </TooltipX>
 
       {/* Dialog */}
       <RawDialog open={isOpen} onClose={() => setIsOpen(false)}>

@@ -6,7 +6,6 @@ import { mergeRegister } from '@lexical/utils';
 import { LOW_PRIORIRTY } from '../constants';
 import { RiFontFamily } from 'react-icons/ri';
 import { FontSelectionList, type FontOption } from '../components/FontSelectionList';
-import TooltipX from '../components/common/Tooltip';
 
 const FONT_FAMILY_OPTIONS: FontOption[] = [
   { id: "", label: "Default" },
@@ -65,14 +64,12 @@ export default function FontFamilyPlugin() {
   }
 
   return (
-    <TooltipX content="Font Family" direction="bottom">
-      <FontSelectionList
-        icon={<RiFontFamily />}
-        tooltipLabel="Font Family"
-        currentValue={fontFamily}
-        options={FONT_FAMILY_OPTIONS}
-        onSelect={updateFontFamily}
-      />
-    </TooltipX>
+    <FontSelectionList
+      icon={<RiFontFamily />}
+      tooltipLabel="Font Family"
+      currentValue={fontFamily}
+      options={FONT_FAMILY_OPTIONS}
+      onSelect={updateFontFamily}
+    />
   )
 }

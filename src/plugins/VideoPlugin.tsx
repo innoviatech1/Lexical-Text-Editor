@@ -4,6 +4,7 @@ import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext
 import { $insertNodes } from "lexical";
 import { $createVideoNode } from "../nodes/VideoNode";
 import RawDialog from "../components/common/Dialog";
+import TooltipX from "../components/common/Tooltip";
 
 export default function VideoPlugin() {
   const [isOpen, setIsOpen] = useState(false);
@@ -59,12 +60,14 @@ export default function VideoPlugin() {
   return (
     <div className="lexical-text-editor-dialog">
       {/* Open dialog button */}
-      <button type="button"
-        className={`size-8 lexical-btn ${isOpen ? "toolbarActive" : "toolbar"} icon`}
-        onClick={() => setIsOpen(true)}
-      >
-        <FaYoutube size={18} color="red" />
-      </button>
+      <TooltipX content="Embed Video" direction="bottom">
+        <button type="button"
+          className={`size-10 lexical-btn ${isOpen ? "toolbarActive" : "toolbar"} icon`}
+          onClick={() => setIsOpen(true)}
+        >
+          <FaYoutube size={18} color="red" />
+        </button>
+      </TooltipX>
 
       {/* Dialog */}
       <RawDialog open={isOpen} onClose={() => setIsOpen(false)}>

@@ -34,7 +34,7 @@ export default function ColorPicker({ color, onChange, icon }: ColorPickerProps)
     <div className="color-picker-wrapper">
       <button type="button"
         ref={triggerRef}
-        className={`size-8 lexical-btn ${open ? "toolbarActive" : "toolbar"} icon`}
+        className={`size-10 lexical-btn ${open ? "toolbarActive" : "toolbar"} icon`}
         onClick={() => setOpen((prev) => !prev)}
       >
         {icon}

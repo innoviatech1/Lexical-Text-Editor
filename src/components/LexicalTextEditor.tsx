@@ -19,6 +19,7 @@ import { LinkPlugin } from "@lexical/react/LexicalLinkPlugin"
 import CustomOnChangePlugin from "../plugins/CustomOnChangePlugin"
 import SourceView from "./SourceView"
 import StatusBar from "./StatusBar"
+import DisplayControls from "./DisplayControls"
 import { ImageNode } from "../nodes/ImageNode"
 import { YoutubeNode } from "../nodes/YoutubeNode"
 import { VideoNode } from "../nodes/VideoNode"
@@ -36,7 +37,13 @@ export interface LexiTexProps {
   showWordCount?: boolean;
   showCharCount?: boolean;
   theme?: 'light' | 'dark' | 'system';
-  toolbarStyle?: 'normal' | 'scrollbar';
+  toolbarStyle?: 'wrap' | 'collapse' | 'scrollbar' | 'normal'; // 'normal' → deprecated alias for 'collapse'
+  /** Show light/dark + toolbar-style switchers in the status bar so end users can change these too */
+  showDisplayControls?: boolean;
+  /** Fires when the end user changes the theme from the editor UI (not on prop changes) */
+  onThemeChange?: (theme: 'light' | 'dark' | 'system') => void;
+  /** Fires when the end user changes the toolbar style from the editor UI (not on prop changes) */
+  onToolbarStyleChange?: (style: 'wrap' | 'collapse' | 'scrollbar') => void;
 }
 
 const editorTheme: EditorThemeClasses = {
@@ -87,18 +94,34 @@ export const LexicalTextEditor: React.FC<LexiTexProps> = React.memo(
     onImageUpload,
     showWordCount = true,
     showCharCount = true,
-    theme = 'light',
-    toolbarStyle = 'normal',
+    theme = 'system',
+    toolbarStyle = 'collapse',
+    showDisplayControls = true,
+    onThemeChange,
+    onToolbarStyleChange,
   }) {
     const [sourceView, setSourceView] = useState(false);
     const [fullscreen, setFullscreen] = useState(false);
     const sourceViewApplyRef = useRef<(() => void) | null>(null);
     const [systemDark, setSystemDark] = useState(false);
 
+    // Theme & toolbar style: BOTH the developer props and the end user (via the
+    // status-bar switchers) can set them. Internal state is what renders; it
+    // follows the props whenever those change, and user switchers write to this
+    // state (firing the optional *Change callbacks for persistence).
+    const [activeTheme, setActiveTheme] = useState<'light' | 'dark' | 'system'>(theme);
+    const [activeToolbarStyle, setActiveToolbarStyle] = useState<'wrap' | 'collapse' | 'scrollbar'>(
+      toolbarStyle === 'normal' ? 'collapse' : toolbarStyle
+    );
+    useEffect(() => { setActiveTheme(theme); }, [theme]);
+    useEffect(() => {
+      setActiveToolbarStyle(toolbarStyle === 'normal' ? 'collapse' : toolbarStyle);
+    }, [toolbarStyle]);
+
     // `system` follows the OS color-scheme preference. matchMedia is only
     // touched inside effects so the component stays SSR/render-safe.
     useEffect(() => {
-      if (theme !== 'system' || typeof window === 'undefined' || !window.matchMedia) return;
+      if (activeTheme !== 'system' || typeof window === 'undefined' || !window.matchMedia) return;
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
       setSystemDark(mediaQuery.matches);
       const onChange = (event: MediaQueryListEvent) => setSystemDark(event.matches);
@@ -109,9 +132,9 @@ export const LexicalTextEditor: React.FC<LexiTexProps> = React.memo(
       // Legacy Safari fallback
       mediaQuery.addListener(onChange);
       return () => mediaQuery.removeListener(onChange);
-    }, [theme]);
+    }, [activeTheme]);
 
-    const isDark = theme === 'dark' || (theme === 'system' && systemDark);
+    const isDark = activeTheme === 'dark' || (activeTheme === 'system' && systemDark);
 
     const toggleSourceView = () => {
       setSourceView((prev) => {
@@ -187,7 +210,7 @@ export const LexicalTextEditor: React.FC<LexiTexProps> = React.memo(
               onToggleSourceView={toggleSourceView}
               fullscreen={fullscreen}
               onToggleFullscreen={toggleFullscreen}
-              toolbarStyle={toolbarStyle}
+              toolbarStyle={activeToolbarStyle}
             />
           </div>
           <div
@@ -213,10 +236,18 @@ export const LexicalTextEditor: React.FC<LexiTexProps> = React.memo(
               applyRef={sourceViewApplyRef}
               onExit={() => setSourceView(false)}
             />}
-          {(showWordCount || showCharCount) &&
+          {(showWordCount || showCharCount || showDisplayControls) &&
             <StatusBar
               showWordCount={showWordCount}
               showCharCount={showCharCount}
+              rightSlot={showDisplayControls
+                ? <DisplayControls
+                    theme={activeTheme}
+                    toolbarStyle={activeToolbarStyle}
+                    onThemeChange={(t) => { setActiveTheme(t); onThemeChange?.(t); }}
+                    onToolbarStyleChange={(s) => { setActiveToolbarStyle(s); onToolbarStyleChange?.(s); }}
+                  />
+                : undefined}
             />}
           <HistoryPlugin />
           <ListPlugin />

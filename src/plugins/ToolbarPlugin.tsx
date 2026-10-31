@@ -47,15 +47,16 @@ import TooltipX from "../components/common/Tooltip"
  * toolbar runs out of width.
  */
 const SEGMENTS: { id: string; primary?: boolean }[] = [
-  { id: 'lists' },
-  { id: 'blockOptions' },
   { id: 'fontFamily' },
   { id: 'fontSize' },
   { id: 'color' },
-  { id: 'codeBlock' },
+  { id: 'textFormats', primary: true },
   { id: 'dropdown' },
-  { id: 'alignment', primary: true },
-  { id: 'link', primary: true },
+  { id: 'lists' },
+  { id: 'blockOptions' },
+  { id: 'primaryAlignment', primary: true },
+  { id: 'primaryLink', primary: true },
+  { id: 'codeBlock' },
   { id: 'image' },
   { id: 'video' },
   { id: 'table' },
@@ -63,6 +64,33 @@ const SEGMENTS: { id: string; primary?: boolean }[] = [
   { id: 'preview' },
 ];
 const NON_PRIMARY_IDS = SEGMENTS.filter((s) => !s.primary).map((s) => s.id);
+/**
+ * Visual order of segments is fixed by `SEGMENTS` above (standard compact
+ * editor order: heading block, then fonts/colours, then character formats,
+ * then the "Aa" extras, lists/indent, alignment, link, inserts, utilities).
+ *
+ * Collapse priority is a separate axis — hidden from the END of this list
+ * first (inserts/utilities go before formatting tools). `textFormats` is
+ * hidden last; only undo/redo + the heading picker are never collapsed, so
+ * the row always fits instead of scrolling in "normal" mode.
+ */
+const COLLAPSIBLE_IDS = [
+  'textFormats',
+  'lists',
+  'primaryAlignment',
+  'primaryLink',
+  'fontFamily',
+  'fontSize',
+  'color',
+  'dropdown',
+  'codeBlock',
+  'blockOptions',
+  'image',
+  'video',
+  'table',
+  'utility',
+  'preview',
+];
 const SEGMENT_GAP = 6;
 const ELLIPSIS_FALLBACK_WIDTH = 40;
 
@@ -73,7 +101,7 @@ export const ToolbarPlugin = ({
   onToggleSourceView,
   fullscreen = false,
   onToggleFullscreen,
-  toolbarStyle = 'normal',
+  toolbarStyle = 'wrap',
 }: {
   value: string;
   onImageUpload?: (file: File) => Promise<string>;
@@ -81,8 +109,19 @@ export const ToolbarPlugin = ({
   onToggleSourceView?: () => void;
   fullscreen?: boolean;
   onToggleFullscreen?: () => void;
-  toolbarStyle?: 'normal' | 'scrollbar';
+  /**
+   * 'collapse' (default) — single row; overflowed segments collapse into the
+   *   "..." button + modal (predictive fit per COLLAPSIBLE_IDS priority).
+   * 'wrap' — all tools flow serially; overflow wraps to the next line.
+   * 'scrollbar' — single horizontal row with a slim scrollbar.
+   * 'normal' — deprecated alias for 'collapse'.
+   */
+  toolbarStyle?: 'wrap' | 'collapse' | 'scrollbar' | 'normal';
 }) => {
+
+  // Legacy value normalization: 'normal' (the old single-row collapse mode) is
+  // now called 'collapse'.
+  const normalizedToolbarStyle = toolbarStyle === 'normal' ? 'collapse' : toolbarStyle;
 
   const [editor] = useLexicalComposerContext();
   const [disableMap, setDisableMap] = useState<{ [id: string]: boolean }>({
@@ -99,6 +138,8 @@ export const ToolbarPlugin = ({
   const segmentRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const widthCache = useRef<Record<string, number>>({});
   const ellipsisWidthRef = useRef(0);
+  const customBarRef = useRef<HTMLDivElement | null>(null);
+  const customThumbRef = useRef<HTMLDivElement | null>(null);
   const [selectionMap, setSelectionMap] = useState<{ [id: string]: boolean }>({
     [RichTextAction.LeftAlign]: true,
   })
@@ -279,16 +320,18 @@ export const ToolbarPlugin = ({
 
   // ---------------- Overflow (3.3) + toolbar style (3.2) ----------------
 
-  const isScrollbarMode = toolbarStyle === 'scrollbar';
+  const isScrollbarMode = normalizedToolbarStyle === 'scrollbar';
 
   /**
    * Predictive fit: measures the primary row and every segment (hidden
    * segments from a width cache), then collapses non-primary segments from
    * the end until the toolbar fits. State is only written on change, so the
    * measure -> render -> measure cycle always terminates.
+   * Only active in 'collapse' mode; 'wrap' shows all tools across extra
+   * lines instead, and 'scrollbar' just scrolls.
    */
   const syncOverflow = useCallback(() => {
-    if (toolbarStyle !== 'normal') return;
+    if (normalizedToolbarStyle !== 'collapse') return;
     const row = rowRef.current;
     if (!row) return;
     // The row has no padding/border, so clientWidth is the usable width
@@ -296,7 +339,7 @@ export const ToolbarPlugin = ({
     if (available <= 0) return;
 
     const primaryWidth = primaryRef.current ? primaryRef.current.offsetWidth : 0;
-    const widths = NON_PRIMARY_IDS.map((id) => {
+    const widths = COLLAPSIBLE_IDS.map((id) => {
       const el = segmentRefs.current[id];
       if (el && el.style.display !== 'none') {
         widthCache.current[id] = el.offsetWidth;
@@ -309,22 +352,22 @@ export const ToolbarPlugin = ({
     const ellipsisWidth = ellipsisWidthRef.current || ELLIPSIS_FALLBACK_WIDTH;
 
     const computeTotal = (k: number) => {
-      const visibleCount = 1 + (k > 0 ? 1 : 0) + (NON_PRIMARY_IDS.length - k);
+      const visibleCount = 1 + (k > 0 ? 1 : 0) + (COLLAPSIBLE_IDS.length - k);
       let total =
         primaryWidth +
         Math.max(0, visibleCount - 1) * SEGMENT_GAP +
         (k > 0 ? ellipsisWidth : 0);
-      for (let i = 0; i < NON_PRIMARY_IDS.length - k; i++) {
+      for (let i = 0; i < COLLAPSIBLE_IDS.length - k; i++) {
         total += widths[i];
       }
       return total;
     };
 
     let k = collapsedCount;
-    while (k < NON_PRIMARY_IDS.length && computeTotal(k) > available) k++;
+    while (k < COLLAPSIBLE_IDS.length && computeTotal(k) > available) k++;
     while (k > 0 && computeTotal(k - 1) <= available) k--;
     setCollapsedCount((prev) => (prev === k ? prev : k));
-  }, [toolbarStyle, collapsedCount]);
+  }, [collapsedCount, normalizedToolbarStyle]);
 
   // Re-measure after every render (selection changes resize dropdown labels)
   useEffect(() => {
@@ -333,23 +376,160 @@ export const ToolbarPlugin = ({
   const syncOverflowRef = useRef<() => void>(() => { });
   syncOverflowRef.current = syncOverflow;
 
-  // Row width changes
+  // Row width changes (resize must refresh BOTH the overflow collapse and the custom scrollbar)
   useEffect(() => {
-    if (toolbarStyle !== 'normal' || typeof ResizeObserver === 'undefined') return;
+    if (typeof ResizeObserver === 'undefined') return;
     const row = rowRef.current;
     if (!row) return;
-    const observer = new ResizeObserver(() => syncOverflowRef.current());
+    const observer = new ResizeObserver(() => {
+      syncOverflowRef.current();
+      customScrollbarSyncRef.current();
+    });
     observer.observe(row);
     return () => observer.disconnect();
-  }, [toolbarStyle]);
+  }, []);
 
   useEffect(() => {
     if (collapsedCount === 0) setOverflowOpen(false);
   }, [collapsedCount]);
 
   useEffect(() => {
-    if (toolbarStyle === 'scrollbar') setCollapsedCount(0);
+    if (normalizedToolbarStyle !== 'collapse') setCollapsedCount(0);
+  }, [normalizedToolbarStyle]);
+
+  // ---------------- Custom slim scrollbar (scrollbar mode) ----------------
+
+  /**
+   * Native scrollbars can't be restyled reliably in modern Chromium (no
+   * arrow removal / exact thickness), so scrollbar mode hides the native bar
+   * and renders a custom slim one. All updates write the DOM directly — no
+   * state — so scrolling never triggers re-renders.
+   */
+  const updateCustomScrollbar = useCallback(() => {
+    if (normalizedToolbarStyle !== 'scrollbar') return;
+    const row = rowRef.current;
+    const bar = customBarRef.current;
+    const thumb = customThumbRef.current;
+    if (!row || !bar || !thumb) return;
+    const trackWidth = row.clientWidth;
+    const overflow = row.scrollWidth - trackWidth;
+    if (overflow <= 1) {
+      bar.style.display = 'none';
+      return;
+    }
+    bar.style.display = 'flex';
+    const thumbWidth = Math.max(24, (trackWidth / row.scrollWidth) * trackWidth);
+    const maxScroll = row.scrollWidth - trackWidth;
+    const maxOffset = trackWidth - thumbWidth;
+    const offset = maxScroll > 0 ? (row.scrollLeft / maxScroll) * maxOffset : 0;
+    thumb.style.width = `${thumbWidth}px`;
+    thumb.style.transform = `translateX(${offset}px)`;
   }, [toolbarStyle]);
+
+  const handleThumbPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    event.preventDefault();
+    const row = rowRef.current;
+    const thumb = customThumbRef.current;
+    if (!row || !thumb) return;
+    const startX = event.clientX;
+    const startScrollLeft = row.scrollLeft;
+    const trackWidth = row.clientWidth;
+    const thumbWidth = Math.max(24, (trackWidth / row.scrollWidth) * trackWidth);
+    const maxScroll = row.scrollWidth - trackWidth;
+    const maxOffset = trackWidth - thumbWidth;
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      const dx = moveEvent.clientX - startX;
+      // Browser clamps scrollLeft to [0, maxScroll]
+      row.scrollLeft = maxOffset > 0
+        ? startScrollLeft + (dx / maxOffset) * maxScroll
+        : 0;
+    };
+    const onPointerUp = () => {
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+    };
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+  }, []);
+
+  const handleTrackPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const row = rowRef.current;
+    const track = customBarRef.current;
+    if (!row || !track) return;
+    // Center the thumb under the pointer, clamped by the browser
+    const trackRect = track.getBoundingClientRect();
+    const ratio = (event.clientX - trackRect.left) / trackRect.width;
+    row.scrollLeft = ratio * row.scrollWidth - row.clientWidth / 2;
+  }, []);
+
+  // ---------------- Icon optical normalization ----------------
+
+  /**
+   * Icons come from different react-icons packs (Bootstrap 16px viewBox,
+   * Tabler/Remix 24px, FontAwesome 512px, Ant 1024px...) and the visible
+   * glyph ("ink") occupies a wildly different share of each viewBox
+   * (0.5 – 1.0), so equal css boxes still render unequal-looking glyphs.
+   * This measures every toolbar svg's real ink bounds and sizes it so the
+   * glyph lands at a constant ~15px, clamped to [17px, 22px] so extremely
+   * sparse glyphs (e.g. Tabler's bold/italic/underline, dots) never balloon
+   * into boxes that read oversized next to their neighbours.
+   */
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const normalizeIconSizes = useCallback(() => {
+    const root = wrapperRef.current;
+    if (!root) return;
+    for (const svgElem of root.querySelectorAll('.lte-toolbar-row svg:not(.chevron), .lte-overflow-panel svg:not(.chevron)')) {
+      const svg = svgElem as SVGSVGElement;
+      try {
+        const vb = svg.viewBox?.baseVal;
+        if (!vb || !vb.width) continue;
+        let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+        svg.querySelectorAll('path, circle, rect, ellipse, polygon, polyline, line').forEach((s) => {
+          const geo = s as SVGGeometryElement;
+          const b = geo.getBBox();
+          if (b.width || b.height) {
+            x1 = Math.min(x1, b.x);
+            y1 = Math.min(y1, b.y);
+            x2 = Math.max(x2, b.x + b.width);
+            y2 = Math.max(y2, b.y + b.height);
+          }
+        });
+        if (x2 === -Infinity) continue;
+        const inkRatio = ((x2 - x1) / vb.width + (y2 - y1) / vb.height) / 2;
+        if (!isFinite(inkRatio) || inkRatio <= 0) continue;
+        const size = Math.min(22, Math.max(17, 15 / inkRatio));
+        if (parseFloat(svg.style.width) !== size) {
+          svg.style.width = `${size}px`;
+          svg.style.height = `${size}px`;
+        }
+      } catch {
+        /* svg that can't be measured is left at the CSS default size */
+      }
+    }
+  }, []);
+
+  // Re-run after every render (icons swap: fullscreen <-> exit, undo/redo enable state, selection icons)
+  useEffect(() => {
+    normalizeIconSizes();
+  });
+
+  // Re-measure the custom scrollbar after every render (labels change widths)
+  useEffect(() => {
+    updateCustomScrollbar();
+  });
+  const customScrollbarSyncRef = useRef<() => void>(() => { });
+  customScrollbarSyncRef.current = updateCustomScrollbar;
+
+  // Native scroll events drive the custom thumb position
+  useEffect(() => {
+    if (normalizedToolbarStyle !== 'scrollbar') return;
+    const row = rowRef.current;
+    if (!row) return;
+    const onScroll = () => updateCustomScrollbar();
+    row.addEventListener('scroll', onScroll);
+    return () => row.removeEventListener('scroll', onScroll);
+  }, [normalizedToolbarStyle, updateCustomScrollbar]);
 
   const onAction = (id: RichTextAction) => {
     switch (id) {
@@ -542,11 +722,47 @@ export const ToolbarPlugin = ({
   //      <div className="flex gap-1.5 justify-start items-center p-1.5 pb-2 mb-1 border-b-[1px] overflow-x-auto overflow-y-hidden scrollbar-thin">
 
   const isSegmentHidden = (id: string) => {
-    const pos = NON_PRIMARY_IDS.indexOf(id);
-    return pos >= NON_PRIMARY_IDS.length - collapsedCount;
+    const pos = COLLAPSIBLE_IDS.indexOf(id);
+    return pos >= COLLAPSIBLE_IDS.length - collapsedCount;
   };
 
   const segmentNodes: Record<string, ReactNode> = {
+    textFormats: (
+      <>
+        {
+          RICH_TEXT_OPTIONS.map(({ id, label, icon }) => (
+            id === RichTextAction.Divider ? <Separator key={id} /> :
+              <TooltipX key={id} content={label} direction="bottom">
+                <button type="button"
+                  className={`size-10 lexical-btn ${selectionMap[id] ? "toolbarActive" : "toolbar"
+                    } icon`}
+                  onClick={() => onAction(id)}
+                >
+                  {icon}
+                </button>
+              </TooltipX>
+          ))
+        }
+      </>
+    ),
+    primaryAlignment: (
+      <>
+        <AlignmentSelectionList onAction={onAction} alignmentSelectionMap={selectionMap} />
+        <Separator />
+      </>
+    ),
+    primaryLink: (
+      <TooltipX content="Link" direction="bottom">
+        <button type="button"
+          className={`size-10 lexical-btn ${selectionMap[RichTextAction.Link] ? "toolbarActive" : "toolbar"
+            } icon`}
+          onClick={() => onAction(RichTextAction.Link)}
+          disabled={!!disableMap[RichTextAction.Link]}
+        >
+          {<IoIosLink />}
+        </button>
+      </TooltipX>
+    ),
     lists: (<><ListPlugin blockType={blockType} /><Separator /></>),
     blockOptions: (
       <>
@@ -555,7 +771,7 @@ export const ToolbarPlugin = ({
             id === RichTextAction.Divider ? <Separator key={id} /> :
               <TooltipX key={id} content={label} direction="bottom">
                 <button type="button"
-                  className={`size-8 lexical-btn ${selectionMap[id] ? "toolbarActive" : "toolbar"
+                  className={`size-10 lexical-btn ${selectionMap[id] ? "toolbarActive" : "toolbar"
                     } icon`}
                   onClick={() => onAction(id)}
                 >
@@ -580,7 +796,7 @@ export const ToolbarPlugin = ({
         <TooltipX content="Find & Replace" direction="bottom">
           <button type="button"
             aria-label="Find & Replace"
-            className={`size-8 lexical-btn ${findReplaceOpen ? "toolbarActive" : "toolbar"
+            className={`size-10 lexical-btn ${findReplaceOpen ? "toolbarActive" : "toolbar"
               } icon`}
             onClick={() => setFindReplaceOpen((prev) => !prev)}
           >
@@ -590,7 +806,7 @@ export const ToolbarPlugin = ({
         <TooltipX content="Source Code View" direction="bottom">
           <button type="button"
             aria-label="Source Code View"
-            className={`size-8 lexical-btn ${sourceView ? "toolbarActive" : "toolbar"
+            className={`size-10 lexical-btn ${sourceView ? "toolbarActive" : "toolbar"
               } icon`}
             onClick={() => onToggleSourceView?.()}
           >
@@ -600,7 +816,7 @@ export const ToolbarPlugin = ({
         <TooltipX content={fullscreen ? "Exit Fullscreen" : "Fullscreen"} direction="bottom">
           <button type="button"
             aria-label={fullscreen ? "Exit Fullscreen" : "Fullscreen"}
-            className={`size-8 lexical-btn ${fullscreen ? "toolbarActive" : "toolbar"
+            className={`size-10 lexical-btn ${fullscreen ? "toolbarActive" : "toolbar"
               } icon`}
             onClick={() => onToggleFullscreen?.()}
           >
@@ -614,6 +830,7 @@ export const ToolbarPlugin = ({
 
   return (
     <div
+      ref={wrapperRef}
       className="lexical-toolbar-wrapper"
       style={{
         position: 'relative',
@@ -622,90 +839,73 @@ export const ToolbarPlugin = ({
     >
       <div
         ref={rowRef}
-        className={`lte-toolbar-row ${isScrollbarMode ? "useScroll scrollbar-thin" : "lte-nowrap"}`}
+        className={`lte-toolbar-row ${isScrollbarMode ? "useScroll" : normalizedToolbarStyle === 'collapse' ? "lte-nowrap" : "lte-wrap"}`}
       >
         <div ref={primaryRef} className="lte-toolbar-primary" style={{ display: 'flex', gap: 6, justifyContent: 'start', alignItems: 'center' }}>
-        {
-          RICH_REDO_UNDO_OPTIONS.map(({ id, label, icon }) => (
-            id === RichTextAction.Divider ? <Separator key={id} /> :
-              <TooltipX content={label} direction="bottom" key={label}>
-                <button type="button"
-                  className={`size-8 lexical-btn ${selectionMap[id] ? "toolbarActive" : "toolbar"
-                    } icon`}
-                  onClick={() => onAction(id)}
-                  disabled={!!disableMap[id]}
-                >
-                  {icon}
-                </button>
-              </TooltipX>
-          ))
-        }
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'start', alignItems: 'center' }}>
+          {
+            RICH_REDO_UNDO_OPTIONS.map(({ id, label, icon }) => (
+              id === RichTextAction.Divider ? <Separator key={id} /> :
+                <TooltipX content={label} direction="bottom" key={label}>
+                  <button type="button"
+                    className={`size-10 lexical-btn ${selectionMap[id] ? "toolbarActive" : "toolbar"
+                      } icon`}
+                    onClick={() => onAction(id)}
+                    disabled={!!disableMap[id]}
+                  >
+                    {icon}
+                  </button>
+                </TooltipX>
+            ))
+          }
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'start', alignItems: 'center' }}>
 
-          <HeadingSelectionList updateHeading={updateHeading} headingSelectionMap={headingSelectionMap} />
-          <Separator />
-        </div>
-        {
-          RICH_TEXT_OPTIONS.map(({ id, label, icon }) => (
-            id === RichTextAction.Divider ? <Separator key={id} /> :
-              <TooltipX key={id} content={label} direction="bottom">
-                <button type="button"
-                  className={`size-8 lexical-btn ${selectionMap[id] ? "toolbarActive" : "toolbar"
-                    } icon`}
-                  onClick={() => onAction(id)}
-                >
-                  {icon}
-                </button>
-              </TooltipX>
-
-
-          ))
-        }
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'start', alignItems: 'center' }}>
-          <AlignmentSelectionList onAction={onAction} alignmentSelectionMap={selectionMap} />
-          <Separator />
-        </div>
-
-        <TooltipX content="Link" direction="bottom">
-          <button type="button"
-            className={`size-8 lexical-btn ${selectionMap[RichTextAction.Link] ? "toolbarActive" : "toolbar"
-              } icon`}
-            onClick={() => onAction(RichTextAction.Link)}
-            disabled={!!disableMap[RichTextAction.Link]}
-          >
-            {<IoIosLink />}
-          </button>
-        </TooltipX>
-      </div>
-
-      {SEGMENTS.filter(({ primary }) => !primary).map(({ id }) => {
-        const hidden = isSegmentHidden(id);
-        return (
-          <div
-            key={id}
-            ref={(el) => { segmentRefs.current[id] = el; }}
-            style={hidden
-              ? { display: 'none' }
-              : { display: 'flex', gap: 6, justifyContent: 'start', alignItems: 'center' }}
-          >
-            {hidden ? null : segmentNodes[id]}
+            <HeadingSelectionList updateHeading={updateHeading} headingSelectionMap={headingSelectionMap} />
+            <Separator />
           </div>
-        );
-      })}
+        </div>
 
-      {collapsedCount > 0 &&
-        <TooltipX content="More tools" direction="bottom">
-          <button type="button"
-            ref={ellipsisRef}
-            aria-label="More tools"
-            className={`size-8 lexical-btn ${overflowOpen ? "toolbarActive" : "toolbar"
-              } icon`}
-            onClick={() => setOverflowOpen((prev) => !prev)}
-          >
-            <BsThreeDots />
-          </button>
-        </TooltipX>}
+        {SEGMENTS.map(({ id }) => {
+          const hidden = isSegmentHidden(id);
+          return (
+            <div
+              key={id}
+              ref={(el) => { segmentRefs.current[id] = el; }}
+              style={hidden
+                ? { display: 'none' }
+                : { display: 'flex', gap: 6, justifyContent: 'start', alignItems: 'center' }}
+            >
+              {hidden ? null : segmentNodes[id]}
+            </div>
+          );
+        })}
+
+        {collapsedCount > 0 &&
+          <TooltipX content="More tools" direction="bottom">
+            <button type="button"
+              ref={ellipsisRef}
+              aria-label="More tools"
+              className={`size-10 lexical-btn ${overflowOpen ? "toolbarActive" : "toolbar"
+                } icon`}
+              onClick={() => setOverflowOpen((prev) => !prev)}
+            >
+              <BsThreeDots />
+            </button>
+          </TooltipX>}
       </div>
+
+      {isScrollbarMode &&
+        <div
+          ref={customBarRef}
+          className="lte-custom-scrollbar"
+          onPointerDown={handleTrackPointerDown}
+          aria-hidden="true"
+        >
+          <div
+            ref={customThumbRef}
+            className="lte-custom-scrollbar-thumb"
+            onPointerDown={handleThumbPointerDown}
+          />
+        </div>}
 
       {linkModalOpen &&
         <LinkModal
@@ -734,8 +934,9 @@ export const ToolbarPlugin = ({
 
       {overflowOpen &&
         <ToolbarOverflowModal anchorRef={ellipsisRef} onClose={() => setOverflowOpen(false)}>
-          {NON_PRIMARY_IDS
-            .filter((id) => isSegmentHidden(id))
+          {SEGMENTS
+            .map(({ id }) => id)
+            .filter((id) => isSegmentHidden(id) && segmentNodes[id])
             .map((id) => (
               <div key={id} className="lte-overflow-item">{segmentNodes[id]}</div>
             ))}

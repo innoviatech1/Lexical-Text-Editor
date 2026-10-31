@@ -20,7 +20,6 @@ export function AlignmentSelectionList({ onAction, alignmentSelectionMap }: Prop
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger triggerRef={triggerRef}>
-
         <button type="button"
           className={`lexical-btn heading-trigger ${isOpen ? "toolbar-active" : "toolbar"}`}
           onClick={() => setIsOpen((prev) => !prev)}
